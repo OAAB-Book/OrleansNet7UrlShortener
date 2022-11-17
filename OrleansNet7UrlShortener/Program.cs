@@ -1,7 +1,10 @@
 using Azure.Identity;
+using Azure.Monitor.OpenTelemetry.Exporter;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Logging.Console;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Orleans.Configuration;
 using OrleansNet7UrlShortener.Grains;
 using OrleansNet7UrlShortener.HealthChecks;
@@ -68,6 +71,7 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
                 options.ClusterId = clusterId;
                 options.ServiceId = serviceId;
             });
+
     }
     else if (hostBuilderContext.HostingEnvironment.IsDevelopment())
     {
@@ -86,17 +90,18 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
             options.ConfigureTableServiceClient(new Uri(urlStoreGrainOption.ServiceUrl),
                new DefaultAzureCredential(new DefaultAzureCredentialOptions
                {
-                   ManagedIdentityClientId = urlStoreGrainOption.ManagedIdentityClientId,
-                   Diagnostics =
-                   {
-                       LoggedHeaderNames = { "x-ms-request-id" },
-                       LoggedQueryParameters = { "api-version" },
-                       IsLoggingContentEnabled = true
-                   }
+                   ManagedIdentityClientId = urlStoreGrainOption.ManagedIdentityClientId
                }));
         });
 
     var appInsightConnectionString = hostBuilderContext.Configuration.GetValue<string>(appInsightKey);
+    if (!string.IsNullOrEmpty(appInsightConnectionString))
+    {
+        siloBuilder.ConfigureLogging(loggingBuilder =>
+            loggingBuilder.AddApplicationInsights(
+                configuration => { configuration.ConnectionString = appInsightConnectionString; },
+                options => { options.FlushOnDispose = true; }));
+    }
 
     // must declare HostSelf false for Orleans Silo Host load DashboardGrain properly on Azure Web App
     siloBuilder.UseDashboard(dashboardOptions =>
@@ -116,6 +121,22 @@ if (!string.IsNullOrEmpty(appInsightConnectionString))
     builder.Logging.AddApplicationInsights(config => { config.ConnectionString = appInsightConnectionString; },
         options => { options.FlushOnDispose = true; });
     builder.Logging.AddAzureWebAppDiagnostics();
+
+    builder.Services.AddOpenTelemetryMetrics(metrics =>
+    {
+        metrics.AddMeter("Microsoft.Orleans");
+        metrics.AddAzureMonitorMetricExporter(options =>
+        {
+            options.ConnectionString = appInsightConnectionString;
+        });
+    });
+
+    builder.Services.AddOpenTelemetryTracing(tracing =>
+    {
+        tracing.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("OrleansUrlShortener"));
+        tracing.AddSource("Microsoft.Orleans");
+        tracing.AddAspNetCoreInstrumentation();
+    });
 }
 
 builder.Services.Configure<SiloDeployOption>(builder.Configuration.GetSection("SiloDeploy"));
