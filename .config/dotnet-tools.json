@@ -2,10 +2,10 @@
   "version": 1,
   "isRoot": true,
   "tools": {
-    "microsoft.dotnet-httprepl": {
-      "version": "6.0.0",
+    "dotnet-httpie": {
+      "version": "0.6.2",
       "commands": [
-        "httprepl"
+        "dotnet-http"
       ]
     }
   }

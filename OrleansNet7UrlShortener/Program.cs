@@ -2,7 +2,6 @@ using Azure.Identity;
 using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Logging.Console;
-using NUlid;
 using Orleans.Configuration;
 using OrleansNet7UrlShortener.Grains;
 using OrleansNet7UrlShortener.HealthChecks;
@@ -156,7 +155,7 @@ app.MapGet("/", async (HttpContext context) =>
 
 app.MapMethods("/shorten/{*path}", new[] { "GET" }, async (HttpRequest req, IGrainFactory grainFactory, string path) =>
 {
-    var shortenedRouteSegment = Ulid.NewUlid().ToString().Substring(10);
+    var shortenedRouteSegment = Nanoid.Nanoid.Generate("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 8);
     var urlStoreGrain = grainFactory.GetGrain<IUrlStoreGrain>(shortenedRouteSegment);
     await urlStoreGrain.SetUrl(shortenedRouteSegment, path);
     var resultBuilder = new UriBuilder(req.GetEncodedUrl()) { Path = $"/go/{shortenedRouteSegment}" };

@@ -16,7 +16,7 @@
     <PackageReference Include="Microsoft.Orleans.Clustering.AzureStorage" Version="7.0.0" />
     <PackageReference Include="Microsoft.Orleans.Persistence.AzureStorage" Version="7.0.0" />
     <PackageReference Include="Microsoft.Orleans.Server" Version="7.0.0" />
-    <PackageReference Include="NUlid" Version="1.7.1" />
+    <PackageReference Include="Nanoid" Version="2.1.0" />
     <PackageReference Include="OrleansDashboard" Version="7.0.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
   </ItemGroup>
