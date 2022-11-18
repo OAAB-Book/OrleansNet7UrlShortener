@@ -27,10 +27,6 @@ var logger = loggerFactory.CreateLogger<Program>();
 var urlStoreGrainOption = new UrlStoreGrainOption();
 builder.Configuration.GetSection("UrlStoreGrain").Bind(urlStoreGrainOption);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
 
 #region Configure Orleans Silo
 
@@ -108,11 +104,21 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
     {
         dashboardOptions.HostSelf = false;
     });
+
+    // enable distributed tracing for Orleans Silo
+    siloBuilder.AddActivityPropagation();
 });
 
 #endregion
 
+#region OpenTelemtry & Application Insight Instrumentation setup
+
 var appInsightConnectionString = builder.Configuration.GetValue<string>(appInsightKey);
+
+builder.Services.AddOpenTelemetryMetrics(metrics =>
+{
+    metrics.AddMeter("Microsoft.Orleans");
+});
 
 if (!string.IsNullOrEmpty(appInsightConnectionString))
 {
@@ -124,20 +130,25 @@ if (!string.IsNullOrEmpty(appInsightConnectionString))
 
     builder.Services.AddOpenTelemetryMetrics(metrics =>
     {
-        metrics.AddMeter("Microsoft.Orleans");
         metrics.AddAzureMonitorMetricExporter(options =>
         {
             options.ConnectionString = appInsightConnectionString;
         });
     });
-
-    builder.Services.AddOpenTelemetryTracing(tracing =>
-    {
-        tracing.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("OrleansUrlShortener"));
-        tracing.AddSource("Microsoft.Orleans");
-        tracing.AddAspNetCoreInstrumentation();
-    });
 }
+
+builder.Services.AddOpenTelemetryTracing(tracing =>
+{
+    tracing.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("OrleansUrlShortener"));
+    tracing.AddSource("Microsoft.Orleans");
+    tracing.AddSource("Microsoft.Orleans.Runtime");
+    tracing.AddSource("Microsoft.Orleans.Application");
+    tracing.AddAspNetCoreInstrumentation();
+});
+
+#endregion
+
+#region ASP.NET Core Health Check integration
 
 builder.Services.Configure<SiloDeployOption>(builder.Configuration.GetSection("SiloDeploy"));
 // Add ASP.Net Core Check Healthy Service
@@ -145,21 +156,14 @@ builder.Services.AddHealthChecks()
     .AddCheck<ClusterHealthCheck>("Orleans_ClusterHealthCheck")
     .AddCheck<SiloHealthCheck>("Orleans_SiloHealthCheck");
 
+#endregion
+
 var app = builder.Build();
 app.MapHealthChecks("/healthz");
 
 app.UseOrleansDashboard(new OrleansDashboard.DashboardOptions { BasePath = orleansDashboardPath });
 
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-
 app.UseHttpsRedirection();
-
 
 #region Web Url/API Endpoints
 
@@ -170,8 +174,8 @@ app.MapGet("/", async (HttpContext context) =>
     var baseUrl = baseUrlBuilder.Uri.ToString();
 
     await context.Response.WriteAsync(
-        $" Type \"{baseUrl}shorten/{{your original url}}\" in address bar to get your shorten url.\r\n\r\n"
-        + $" Orleans Dashboard: \"{baseUrl}{orleansDashboardPath}\" ");
+        $"<html>Type <code>\"{baseUrl}shorten/{{your original url}}\"</code> in address bar to get your shorten url.<br/><br/>"
+        + $" Orleans Dashboard: <a href=\"{baseUrl}{orleansDashboardPath}\" target=\"_blank\">click here</a></html>");
 });
 
 app.MapMethods("/shorten/{*path}", new[] { "GET" }, async (HttpRequest req, IGrainFactory grainFactory, string path) =>
@@ -182,7 +186,7 @@ app.MapMethods("/shorten/{*path}", new[] { "GET" }, async (HttpRequest req, IGra
     var resultBuilder = new UriBuilder(req.GetEncodedUrl()) { Path = $"/go/{shortenedRouteSegment}" };
 
     return Results.Ok(resultBuilder.Uri);
-}).WithName("ShortenUrl").WithOpenApi();
+});
 
 app.MapGet("/go/{shortenUriSegment}", async (string shortenUriSegment, IGrainFactory grainFactory) =>
 {
@@ -196,7 +200,7 @@ app.MapGet("/go/{shortenUriSegment}", async (string shortenUriSegment, IGrainFac
     {
         return Results.NotFound("Url not found");
     }
-}).WithName("GoToUrl").WithOpenApi();
+});
 
 #endregion
 
