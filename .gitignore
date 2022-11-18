@@ -361,3 +361,5 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+OrleansNet7UrlShortener/Properties/ServiceDependencies
+OrleansNet7UrlShortener/.config/dotnet-tools.json

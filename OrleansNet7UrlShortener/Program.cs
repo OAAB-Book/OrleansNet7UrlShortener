@@ -113,13 +113,24 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
 
 #region OpenTelemtry & Application Insight Instrumentation setup
 
-var appInsightConnectionString = builder.Configuration.GetValue<string>(appInsightKey);
-
 builder.Services.AddOpenTelemetryMetrics(metrics =>
 {
     metrics.AddMeter("Microsoft.Orleans");
+    metrics.AddMeter("Microsoft.Orleans");
+    metrics.AddMeter("Microsoft.Orleans.Runtime");
+    metrics.AddMeter("Microsoft.Orleans.Application");
 });
 
+builder.Services.AddOpenTelemetryTracing(tracing =>
+{
+    tracing.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("OrleansUrlShortener", "Orleans NET7 Web App Demo"));
+    tracing.AddAspNetCoreInstrumentation();
+    tracing.AddSource("Microsoft.Orleans");
+    tracing.AddSource("Microsoft.Orleans.Runtime");
+    tracing.AddSource("Microsoft.Orleans.Application");
+});
+
+var appInsightConnectionString = builder.Configuration.GetValue<string>(appInsightKey);
 if (!string.IsNullOrEmpty(appInsightConnectionString))
 {
     //we use Application insight's configuration to know if we are running on Azure Web App or locally
@@ -135,16 +146,15 @@ if (!string.IsNullOrEmpty(appInsightConnectionString))
             options.ConnectionString = appInsightConnectionString;
         });
     });
-}
 
-builder.Services.AddOpenTelemetryTracing(tracing =>
-{
-    tracing.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("OrleansUrlShortener"));
-    tracing.AddSource("Microsoft.Orleans");
-    tracing.AddSource("Microsoft.Orleans.Runtime");
-    tracing.AddSource("Microsoft.Orleans.Application");
-    tracing.AddAspNetCoreInstrumentation();
-});
+    builder.Services.AddOpenTelemetryTracing(tracing =>
+    {
+        tracing.AddAzureMonitorTraceExporter(options =>
+        {
+            options.ConnectionString = appInsightConnectionString;
+        });
+    });
+}
 
 #endregion
 
@@ -174,8 +184,9 @@ app.MapGet("/", async (HttpContext context) =>
     var baseUrl = baseUrlBuilder.Uri.ToString();
 
     await context.Response.WriteAsync(
-        $"<html>Type <code>\"{baseUrl}shorten/{{your original url}}\"</code> in address bar to get your shorten url.<br/><br/>"
-        + $" Orleans Dashboard: <a href=\"{baseUrl}{orleansDashboardPath}\" target=\"_blank\">click here</a></html>");
+        "<html lang=\"en\"><head><meta http-equiv=\"content-language\" content=\"en-us\"/></head>" +
+        $"<body>Type <code>\"{baseUrl}shorten/{{your original url}}\"</code> in address bar to get your shorten url.<br/><br/>" +
+        $" Orleans Dashboard: <a href=\"{baseUrl}{orleansDashboardPath}\" target=\"_blank\">click here</a></body></html>");
 });
 
 app.MapMethods("/shorten/{*path}", new[] { "GET" }, async (HttpRequest req, IGrainFactory grainFactory, string path) =>
