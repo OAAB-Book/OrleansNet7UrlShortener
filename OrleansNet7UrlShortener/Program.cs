@@ -50,6 +50,11 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
         const string serviceId = "OrleansUrlShortener";
         logger.LogInformation("Using cluster id '{clusterId}' and service id '{serviceId}'", clusterId, serviceId);
         siloBuilder.ConfigureEndpoints(ipAddress, siloPort, gatewayPort);
+        siloBuilder.Configure<ClusterOptions>(options =>
+        {
+            options.ClusterId = clusterId;
+            options.ServiceId = serviceId;
+        });
 
         var azureTableClusterOption = new AzureTableClusterOption();
         hostBuilderContext.Configuration.GetSection("AzureTableCluster").Bind(azureTableClusterOption);
@@ -61,13 +66,7 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
                 {
                     ManagedIdentityClientId = azureTableClusterOption.ManagedIdentityClientId
                 }));
-        })
-            .Configure<ClusterOptions>(options =>
-            {
-                options.ClusterId = clusterId;
-                options.ServiceId = serviceId;
-            });
-
+        });
     }
     else if (hostBuilderContext.HostingEnvironment.IsDevelopment())
     {
@@ -80,9 +79,9 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
         {
             options.TableName =
                 urlStoreGrainOption.TableName; // if not set, default will be "OrleansGrainState" table name
-
             // use this configuration if you only want to use local http only Azurite Azure Table Storage emulator
-            // options.ConfigureTableServiceClient("DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;");
+            // options.ConfigureTableServiceClient(
+            //    "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;");
             options.ConfigureTableServiceClient(new Uri(urlStoreGrainOption.ServiceUrl),
                new DefaultAzureCredential(new DefaultAzureCredentialOptions
                {
@@ -111,7 +110,7 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
 
 #endregion
 
-#region OpenTelemtry & Application Insight Instrumentation setup
+#region OpenTelemetry & Application Insight Instrumentation setup
 
 builder.Services.AddOpenTelemetryMetrics(metrics =>
 {
@@ -189,7 +188,8 @@ app.MapGet("/", async (HttpContext context) =>
         $" Orleans Dashboard: <a href=\"{baseUrl}{orleansDashboardPath}\" target=\"_blank\">click here</a></body></html>");
 });
 
-app.MapMethods("/shorten/{*path}", new[] { "GET" }, async (HttpRequest req, IGrainFactory grainFactory, string path) =>
+app.MapMethods("/shorten/{*path}", new[] { "GET" }, 
+                async (HttpRequest req, IGrainFactory grainFactory, string path) =>
 {
     var shortenedRouteSegment = Nanoid.Nanoid.Generate("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 8);
     var urlStoreGrain = grainFactory.GetGrain<IUrlStoreGrain>(shortenedRouteSegment);
