@@ -20,7 +20,6 @@ public class UrlStoreGrain : IGrainBase, IUrlStoreGrain
         _cache = cache;
     }
 
-
     public async Task SetUrl(string shortenedRouteSegment, string fullUrl)
     {
         fullUrl = CleanupUrl(fullUrl);
@@ -28,6 +27,17 @@ public class UrlStoreGrain : IGrainBase, IUrlStoreGrain
         await _cache.WriteStateAsync();
     }
 
+    public Task<string> GetUrl()
+    {
+        if (_cache.RecordExists)
+        {
+            return Task.FromResult(_cache.State.Value);
+        }
+
+        throw new KeyNotFoundException("Url key not exist: " + GrainContext.GrainId.Key);
+    }
+    
+    // url rectification, because some web server will filter out double slash
     private static string CleanupUrl(string inputUrl)
     {
         if (string.IsNullOrEmpty(inputUrl))
@@ -62,15 +72,5 @@ public class UrlStoreGrain : IGrainBase, IUrlStoreGrain
 
             _ => throw new ArgumentException("URL is invalid", nameof(inputUrl))
         }).TrimEnd();
-    }
-
-    public Task<string> GetUrl()
-    {
-        if (_cache.RecordExists)
-        {
-            return Task.FromResult(_cache.State.Value);
-        }
-
-        throw new KeyNotFoundException("Url key not exist: " + GrainContext.GrainId.Key);
     }
 }
