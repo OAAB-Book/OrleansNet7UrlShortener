@@ -27,6 +27,7 @@ resource frontend 'Microsoft.Web/sites@2022-03-01' = {
     }
     properties: {
         clientAffinityEnabled: false
+        httpsOnly: true
         serverFarmId: frontendAppServicePlan.id
         virtualNetworkSubnetId: vnetSubnetId
         siteConfig: {
@@ -107,6 +108,8 @@ resource stagingSlot 'Microsoft.Web/sites/slots@2022-03-01' = {
     location: location
     parent: frontend
     properties: {
+        clientAffinityEnabled: false
+        httpsOnly: true
         serverFarmId: frontendAppServicePlan.id
         virtualNetworkSubnetId: vnetSubnetId
         siteConfig: {

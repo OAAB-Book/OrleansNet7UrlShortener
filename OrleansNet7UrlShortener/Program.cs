@@ -162,6 +162,7 @@ if (!string.IsNullOrEmpty(appInsightConnectionString))
 builder.Services.Configure<SiloDeployOption>(builder.Configuration.GetSection("SiloDeploy"));
 // Add ASP.Net Core Check Healthy Service
 builder.Services.AddHealthChecks()
+    .AddCheck<GrainHealthCheck>("Orleans_GrainHealthCheck")
     .AddCheck<ClusterHealthCheck>("Orleans_ClusterHealthCheck")
     .AddCheck<SiloHealthCheck>("Orleans_SiloHealthCheck");
 
