@@ -3,11 +3,11 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.4.33103.184
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OrleansNet7UrlShortener", "OrleansNet7UrlShortener\OrleansNet7UrlShortener.csproj", "{304F0891-7A05-422E-953B-247824FCAD45}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OrleansNet7UrlShortener", "src\OrleansNet7UrlShortener\OrleansNet7UrlShortener.csproj", "{304F0891-7A05-422E-953B-247824FCAD45}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OrleansNet7UrlShortener.Grains", "OrleansNet7UrlShortener.Grains\OrleansNet7UrlShortener.Grains.csproj", "{BE24023C-0337-4375-BC63-2BBACCDA00BB}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OrleansNet7UrlShortener.Grains", "src\OrleansNet7UrlShortener.Grains\OrleansNet7UrlShortener.Grains.csproj", "{BE24023C-0337-4375-BC63-2BBACCDA00BB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrleansNet7UrlShortener.Grains.Tests", "OrleansNet7UrlShortener.Grains.Tests\OrleansNet7UrlShortener.Grains.Tests.csproj", "{6D197CB2-E3F8-46E1-B08A-3849F3A15F59}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrleansNet7UrlShortener.Grains.Tests", "tests\OrleansNet7UrlShortener.Grains.Tests\OrleansNet7UrlShortener.Grains.Tests.csproj", "{6D197CB2-E3F8-46E1-B08A-3849F3A15F59}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

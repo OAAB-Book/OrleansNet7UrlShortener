@@ -1,7 +1,6 @@
 using Azure.Identity;
 using Azure.Monitor.OpenTelemetry.Exporter;
 using Microsoft.AspNetCore.Http.Extensions;
-using Microsoft.Extensions.Azure;
 using Microsoft.Extensions.Logging.Console;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
@@ -10,6 +9,8 @@ using OrleansNet7UrlShortener.Grains;
 using OrleansNet7UrlShortener.HealthChecks;
 using OrleansNet7UrlShortener.Options;
 using System.Net;
+using OpenTelemetry.Exporter;
+using OpenTelemetry.Metrics;
 
 const string appInsightKey = "APPLICATIONINSIGHTS_CONNECTION_STRING";
 const string orleansDashboardPath = @"orleansDashboard";
@@ -24,17 +25,17 @@ using var loggerFactory = LoggerFactory.Create(loggingBuilder =>
 });
 var logger = loggerFactory.CreateLogger<Program>();
 
-var urlStoreGrainOption = new UrlStoreGrainOption();
-builder.Configuration.GetSection("UrlStoreGrain").Bind(urlStoreGrainOption);
-
+var isInContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER")?.Trim().ToLower() == "true";
+if (isInContainer)
+{
+    // To receive SIGTERM signal in container, we need to use the following code
+    builder.Host.UseConsoleLifetime();
+}
 
 #region Configure Orleans Silo
 
 builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
 {
-    var urlStoreGrainOption = new UrlStoreGrainOption();
-    hostBuilderContext.Configuration.GetSection("UrlStoreGrain").Bind(urlStoreGrainOption);
-
     // Azure web app will set these environment variables when it has virtual network integration configured
     // https://learn.microsoft.com/en-us/azure/app-service/reference-app-settings?tabs=kudu%2Cdotnet#networking
     var privateIpStr = Environment.GetEnvironmentVariable("WEBSITE_PRIVATE_IP");
@@ -44,12 +45,28 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
         && int.TryParse(privatePort[0], out var siloPort) && int.TryParse(privatePort[1], out var gatewayPort))
     {
         logger.LogInformation(
-            "Using private IP address {ipAddress} for silo port {siloPort} and gateway port {gatewayPort}", ipAddress,
-            siloPort, gatewayPort);
-        string clusterId = $"cluster-{Environment.GetEnvironmentVariable("WEBSITE_DEPLOYMENT_ID")}";
+            "Using IP address {ipAddress} for silo port {siloPort} and gateway port {gatewayPort}, isInContainer={isInContainer}",
+            ipAddress, siloPort, gatewayPort, isInContainer);
+        
+        siloBuilder.ConfigureEndpoints(ipAddress, siloPort, gatewayPort, listenOnAnyHostAddress: isInContainer);
+
+        // Determine the proper cluster id for different Azure App Service Deployment Slots
+        string clusterId;
+        if (OperatingSystem.IsWindows() && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_DEPLOYMENT_ID")))
+        {
+            clusterId = $"cluster-{Environment.GetEnvironmentVariable("WEBSITE_DEPLOYMENT_ID")}";
+        }
+        else if (OperatingSystem.IsLinux() && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME")))
+        {
+            clusterId = $"cluster-{Environment.GetEnvironmentVariable("WEBSITE_SITE_NAME")}";
+        }
+        else
+        {
+            clusterId = "cluster-single-slot";
+        }
+
         const string serviceId = "OrleansUrlShortener";
         logger.LogInformation("Using cluster id '{clusterId}' and service id '{serviceId}'", clusterId, serviceId);
-        siloBuilder.ConfigureEndpoints(ipAddress, siloPort, gatewayPort);
         siloBuilder.Configure<ClusterOptions>(options =>
         {
             options.ClusterId = clusterId;
@@ -73,6 +90,8 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
         siloBuilder.UseLocalhostClustering();
     }
 
+    var urlStoreGrainOption = new UrlStoreGrainOption();
+    builder.Configuration.GetSection("UrlStoreGrain").Bind(urlStoreGrainOption);
     siloBuilder.AddAzureTableGrainStorage(
         name: "url-store",
         configureOptions: options =>
@@ -81,12 +100,14 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
                 urlStoreGrainOption.TableName; // if not set, default will be "OrleansGrainState" table name
             // use this configuration if you only want to use local http only Azurite Azure Table Storage emulator
             // options.ConfigureTableServiceClient(
-            //    "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;");
+            //  "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;
+            //  AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;
+            //  TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;");
             options.ConfigureTableServiceClient(new Uri(urlStoreGrainOption.ServiceUrl),
-               new DefaultAzureCredential(new DefaultAzureCredentialOptions
-               {
-                   ManagedIdentityClientId = urlStoreGrainOption.ManagedIdentityClientId
-               }));
+                new DefaultAzureCredential(new DefaultAzureCredentialOptions
+                {
+                    ManagedIdentityClientId = urlStoreGrainOption.ManagedIdentityClientId
+                }));
         });
 
     var appInsightConnectionString = hostBuilderContext.Configuration.GetValue<string>(appInsightKey);
@@ -99,10 +120,7 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
     }
 
     // must declare HostSelf false for Orleans Silo Host load DashboardGrain properly on Azure Web App
-    siloBuilder.UseDashboard(dashboardOptions =>
-    {
-        dashboardOptions.HostSelf = false;
-    });
+    siloBuilder.UseDashboard(dashboardOptions => { dashboardOptions.HostSelf = false; });
 
     // enable distributed tracing for Orleans Silo
     siloBuilder.AddActivityPropagation();
@@ -114,7 +132,7 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
 
 builder.Services.AddOpenTelemetryMetrics(metrics =>
 {
-    metrics.AddMeter("Microsoft.Orleans");
+    metrics.AddAspNetCoreInstrumentation();
     metrics.AddMeter("Microsoft.Orleans");
     metrics.AddMeter("Microsoft.Orleans.Runtime");
     metrics.AddMeter("Microsoft.Orleans.Application");
@@ -140,17 +158,27 @@ if (!string.IsNullOrEmpty(appInsightConnectionString))
 
     builder.Services.AddOpenTelemetryMetrics(metrics =>
     {
-        metrics.AddAzureMonitorMetricExporter(options =>
-        {
-            options.ConnectionString = appInsightConnectionString;
-        });
+        metrics.AddAzureMonitorMetricExporter(options => { options.ConnectionString = appInsightConnectionString; });
     });
 
     builder.Services.AddOpenTelemetryTracing(tracing =>
     {
-        tracing.AddAzureMonitorTraceExporter(options =>
+        tracing.AddAzureMonitorTraceExporter(options => { options.ConnectionString = appInsightConnectionString; });
+    });
+}
+else
+{
+    // Use Local OpenTelemetry Collector for development
+    builder.Services.AddOpenTelemetryMetrics(metrics =>
+    {
+        metrics.AddConsoleExporter(options => { options.Targets = ConsoleExporterOutputTargets.Debug; });
+    });
+    builder.Services.AddOpenTelemetryTracing(tracing =>
+    {
+        tracing.AddJaegerExporter(options =>
         {
-            options.ConnectionString = appInsightConnectionString;
+            options.AgentHost = "localhost";
+            options.AgentPort = 6831;
         });
     });
 }
@@ -189,16 +217,16 @@ app.MapGet("/", async (HttpContext context) =>
         $" Orleans Dashboard: <a href=\"{baseUrl}{orleansDashboardPath}\" target=\"_blank\">click here</a></body></html>");
 });
 
-app.MapMethods("/shorten/{*path}", new[] { "GET" }, 
-                async (HttpRequest req, IGrainFactory grainFactory, string path) =>
-{
-    var shortenedRouteSegment = Nanoid.Nanoid.Generate("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 8);
-    var urlStoreGrain = grainFactory.GetGrain<IUrlStoreGrain>(shortenedRouteSegment);
-    await urlStoreGrain.SetUrl(shortenedRouteSegment, path);
-    var resultBuilder = new UriBuilder(req.GetEncodedUrl()) { Path = $"/go/{shortenedRouteSegment}" };
+app.MapMethods("/shorten/{*path}", new[] { "GET" },
+    async (HttpRequest req, IGrainFactory grainFactory, string path) =>
+    {
+        var shortenedRouteSegment = Nanoid.Nanoid.Generate("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ", 8);
+        var urlStoreGrain = grainFactory.GetGrain<IUrlStoreGrain>(shortenedRouteSegment);
+        await urlStoreGrain.SetUrl(shortenedRouteSegment, path);
+        var resultBuilder = new UriBuilder(req.GetEncodedUrl()) { Path = $"/go/{shortenedRouteSegment}" };
 
-    return Results.Ok(resultBuilder.Uri);
-});
+        return Results.Ok(resultBuilder.Uri);
+    });
 
 app.MapGet("/go/{shortenUriSegment}", async (string shortenUriSegment, IGrainFactory grainFactory) =>
 {

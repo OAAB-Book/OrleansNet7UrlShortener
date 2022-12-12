@@ -363,3 +363,5 @@ MigrationBackup/
 FodyWeavers.xsd
 OrleansNet7UrlShortener/Properties/ServiceDependencies
 OrleansNet7UrlShortener/.config/dotnet-tools.json
+OpentTelemetry_collector/jaeger-*
+src/OrleansNet7UrlShortener/Properties/ServiceDependencies

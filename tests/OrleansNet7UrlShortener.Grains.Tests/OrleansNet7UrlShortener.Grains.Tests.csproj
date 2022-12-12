@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\OrleansNet7UrlShortener.Grains\OrleansNet7UrlShortener.Grains.csproj" />
+    <ProjectReference Include="..\..\src\OrleansNet7UrlShortener.Grains\OrleansNet7UrlShortener.Grains.csproj" />
   </ItemGroup>
 
 </Project>

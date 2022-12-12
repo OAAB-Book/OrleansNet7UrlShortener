@@ -111,7 +111,5 @@ namespace OrleansNet7UrlShortener.Grains.Tests
             Assert.Equal("URL cannot be null or empty (Parameter 'inputUrl')", exception02.Message);
             Assert.Equal("URL is invalid (Parameter 'inputUrl')", exception03.Message);
         }
-
-        
     }
 }
