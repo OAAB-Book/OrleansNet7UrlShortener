@@ -47,7 +47,6 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
         logger.LogInformation(
             "Using IP address {ipAddress} for silo port {siloPort} and gateway port {gatewayPort}, isInContainer={isInContainer}",
             ipAddress, siloPort, gatewayPort, isInContainer);
-        
         siloBuilder.ConfigureEndpoints(ipAddress, siloPort, gatewayPort, listenOnAnyHostAddress: isInContainer);
 
         // Determine the proper cluster id for different Azure App Service Deployment Slots
@@ -212,7 +211,7 @@ app.MapGet("/", async (HttpContext context) =>
     var baseUrl = baseUrlBuilder.Uri.ToString();
 
     await context.Response.WriteAsync(
-        "<html lang=\"en\"><head><meta http-equiv=\"content-language\" content=\"en-us\"/></head>" +
+        "<html lang=\"en\"><head><title>.NET 7 Orleans url shortener</title><meta http-equiv=\"content-language\" content=\"en-us\"/></head>" +
         $"<body>Type <code>\"{baseUrl}shorten/{{your original url}}\"</code> in address bar to get your shorten url.<br/><br/>" +
         $" Orleans Dashboard: <a href=\"{baseUrl}{orleansDashboardPath}\" target=\"_blank\">click here</a></body></html>");
 });
