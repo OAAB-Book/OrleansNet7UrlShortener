@@ -7,7 +7,12 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OrleansNet7UrlShortener", "
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OrleansNet7UrlShortener.Grains", "src\OrleansNet7UrlShortener.Grains\OrleansNet7UrlShortener.Grains.csproj", "{BE24023C-0337-4375-BC63-2BBACCDA00BB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OrleansNet7UrlShortener.Grains.Tests", "tests\OrleansNet7UrlShortener.Grains.Tests\OrleansNet7UrlShortener.Grains.Tests.csproj", "{6D197CB2-E3F8-46E1-B08A-3849F3A15F59}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "OrleansNet7UrlShortener.Grains.Tests", "tests\OrleansNet7UrlShortener.Grains.Tests\OrleansNet7UrlShortener.Grains.Tests.csproj", "{6D197CB2-E3F8-46E1-B08A-3849F3A15F59}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{3BFC95CE-4940-4603-982E-97A7E237B97C}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

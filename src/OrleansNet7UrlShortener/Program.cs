@@ -9,6 +9,7 @@ using OrleansNet7UrlShortener.Grains;
 using OrleansNet7UrlShortener.HealthChecks;
 using OrleansNet7UrlShortener.Options;
 using System.Net;
+using OpenTelemetry;
 using OpenTelemetry.Exporter;
 using OpenTelemetry.Metrics;
 
@@ -129,7 +130,7 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
 
 #region OpenTelemetry & Application Insight Instrumentation setup
 
-builder.Services.AddOpenTelemetryMetrics(metrics =>
+builder.Services.AddOpenTelemetry().WithMetrics(metrics =>
 {
     metrics.AddAspNetCoreInstrumentation();
     metrics.AddMeter("Microsoft.Orleans");
@@ -137,7 +138,7 @@ builder.Services.AddOpenTelemetryMetrics(metrics =>
     metrics.AddMeter("Microsoft.Orleans.Application");
 });
 
-builder.Services.AddOpenTelemetryTracing(tracing =>
+builder.Services.AddOpenTelemetry().WithTracing(tracing =>
 {
     tracing.SetResourceBuilder(ResourceBuilder.CreateDefault().AddService("OrleansUrlShortener", "Orleans NET7 Web App Demo"));
     tracing.AddAspNetCoreInstrumentation();
@@ -155,31 +156,31 @@ if (!string.IsNullOrEmpty(appInsightConnectionString))
         options => { options.FlushOnDispose = true; });
     builder.Logging.AddAzureWebAppDiagnostics();
 
-    builder.Services.AddOpenTelemetryMetrics(metrics =>
+    builder.Services.AddOpenTelemetry().WithMetrics(metrics =>
     {
         metrics.AddAzureMonitorMetricExporter(options => { options.ConnectionString = appInsightConnectionString; });
-    });
+    }).StartWithHost();
 
-    builder.Services.AddOpenTelemetryTracing(tracing =>
+    builder.Services.AddOpenTelemetry().WithTracing(tracing =>
     {
         tracing.AddAzureMonitorTraceExporter(options => { options.ConnectionString = appInsightConnectionString; });
-    });
+    }).StartWithHost();
 }
 else
 {
     // Use Local OpenTelemetry Collector for development
-    builder.Services.AddOpenTelemetryMetrics(metrics =>
+    builder.Services.AddOpenTelemetry().WithMetrics(metrics =>
     {
         metrics.AddConsoleExporter(options => { options.Targets = ConsoleExporterOutputTargets.Debug; });
-    });
-    builder.Services.AddOpenTelemetryTracing(tracing =>
+    }).StartWithHost();
+    builder.Services.AddOpenTelemetry().WithTracing(tracing =>
     {
         tracing.AddJaegerExporter(options =>
         {
             options.AgentHost = "localhost";
             options.AgentPort = 6831;
         });
-    });
+    }).StartWithHost();
 }
 
 #endregion
