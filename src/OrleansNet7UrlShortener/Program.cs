@@ -49,6 +49,24 @@ builder.Host.UseOrleans((hostBuilderContext, siloBuilder) =>
             "Using IP address {ipAddress} for silo port {siloPort} and gateway port {gatewayPort}, isInContainer={isInContainer}",
             ipAddress, siloPort, gatewayPort, isInContainer);
         siloBuilder.ConfigureEndpoints(ipAddress, siloPort, gatewayPort, listenOnAnyHostAddress: isInContainer);
+        // NOTE: Be sure to set those Options when Silo running in containerized environment
+        // see: https://github.com/dotnet/orleans/issues/7973#issuecomment-1244517617
+        if (isInContainer)
+        {
+            siloBuilder.Configure<ClusterMembershipOptions>(options =>
+            {
+                options.ExtendProbeTimeoutDuringDegradation = true;
+                options.EnableIndirectProbes = true;
+                // Make Remove dead or defunct silo entry in Cluster membership table faster
+                if (int.TryParse(Environment.GetEnvironmentVariable("WEBSITES_CONTAINER_START_TIME_LIMIT"),
+                        out var containerStartTimeLimit))
+                {
+                    var defunctSiloExpiration = TimeSpan.FromSeconds(containerStartTimeLimit*2);
+                    logger.LogInformation("Defunct silos expiration is set to {defunctSiloExpiration }", defunctSiloExpiration);
+                    options.DefunctSiloExpiration = defunctSiloExpiration;
+                }
+            });
+        }
 
         // Determine the proper cluster id for different Azure App Service Deployment Slots
         string clusterId;
