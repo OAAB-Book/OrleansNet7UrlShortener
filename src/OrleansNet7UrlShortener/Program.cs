@@ -219,7 +219,11 @@ app.MapHealthChecks("/healthz");
 
 app.UseOrleansDashboard(new OrleansDashboard.DashboardOptions { BasePath = orleansDashboardPath });
 
-app.UseHttpsRedirection();
+if (!isInContainer)
+{
+    // Because Https is already handled before request is coming into docker container, we don't need to redirect to https.
+    app.UseHttpsRedirection();
+}
 
 #region Web Url/API Endpoints
 
